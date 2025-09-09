@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Conversor de link - Google Drive → lh3</title>
+  <style>
+    :root{font-family:Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;}
+    body{max-width:880px;margin:28px auto;padding:18px;background:#f7f9fc;border-radius:12px;color:#0b1a2b}
+    h1{font-size:20px;margin:0 0 10px}
+    p{margin:6px 0 14px;color:#334155}
+    .card{background:white;padding:16px;border-radius:10px;box-shadow:0 6px 18px rgba(12,20,30,0.06)}
+    label{display:block;font-size:13px;margin-bottom:6px}
+    input[type=text], textarea{width:100%;padding:10px;border:1px solid #e6eef8;border-radius:8px;font-size:14px}
+    .row{display:flex;gap:8px;margin-top:10px}
+    button{padding:10px 12px;border-radius:8px;border:0;background:#0ea5a3;color:white;cursor:pointer}
+    button.secondary{background:#64748b}
+    .note{font-size:13px;color:#475569;margin-top:10px}
+    .preview{margin-top:14px;text-align:center}
+    img.preview-img{max-width:100%;max-height:360px;border-radius:8px;border:1px solid #e6eef8}
+    .small{font-size:12px;color:#64748b}
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Conversor de link do Google Drive → lh3 (imagem)</h1>
+    <p>Cole o link de compartilhamento do Google Drive e gere o link direto para usar como <code>src</code> de imagens (lh3.googleusercontent.com).</p>
+
+    <label for="inputLink">Link de compartilhamento (Google Drive)</label>
+    <input id="inputLink" type="text" placeholder="https://drive.google.com/file/d/ID/view?usp=sharing" />
+
+    <div class="row">
+      <button id="btnConvert">Converter</button>
+      <button class="secondary" id="btnClear">Limpar</button>
+      <button class="secondary" id="btnPaste">Colar (clipboard)</button>
+    </div>
+
+    <div style="margin-top:12px">
+      <label for="outputLink">Link ajustado (lh3.googleusercontent.com)</label>
+      <div style="display:flex;gap:8px">
+        <input id="outputLink" type="text" readonly placeholder="https://lh3.googleusercontent.com/d/ID" />
+        <button id="btnCopy">Copiar</button>
+      </div>
+      <div class="note">Suporta vários formatos: <span class="small">/file/d/ID/..., open?id=ID, uc?id=ID, ?id=ID, url contendo "/d/ID"</span></div>
+    </div>
+
+    <div class="preview" id="previewArea" style="display:none">
+      <p class="small">Pré-visualização (se a imagem permitir hotlink):</p>
+      <img id="previewImg" class="preview-img" alt="preview" src="" />
+    </div>
+
+    <p class="small">Exemplo de entrada: <br>https://drive.google.com/file/d/1EEsnthdHOzOV1j26r6QWuQJPitZe1v9m/view?usp=sharing</p>
+    <p class="small">Exemplo de saída: <br>https://lh3.googleusercontent.com/d/1EEsnthdHOzOV1j26r6QWuQJPitZe1v9m</p>
+  </div>
+
+  <script>
+    const inEl = document.getElementById('inputLink');
+    const outEl = document.getElementById('outputLink');
+    const btnConvert = document.getElementById('btnConvert');
+    const btnCopy = document.getElementById('btnCopy');
+    const btnClear = document.getElementById('btnClear');
+    const btnPaste = document.getElementById('btnPaste');
+    const previewArea = document.getElementById('previewArea');
+    const previewImg = document.getElementById('previewImg');
+
+    function extractIdFromDriveUrl(url){
+      if(!url) return null;
+      url = url.trim();
+      // Common patterns:
+      // https://drive.google.com/file/d/ID/view?usp=sharing
+      // https://drive.google.com/open?id=ID
+      // https://drive.google.com/uc?id=ID&export=download
+      // https://drive.google.com/drive/folders/ID (folders not supported)
+      // direct id only
+
+      // Try to find "/d/ID" first
+      let m = url.match(/\/d\/([a-zA-Z0-9_-]{10,})/);
+      if(m && m[1]) return m[1];
+
+      // try id in query string: ?id=ID or &id=ID
+      m = url.match(/[?&]id=([a-zA-Z0-9_-]{10,})/);
+      if(m && m[1]) return m[1];
+
+      // sometimes the URL is just the id
+      if(/^[a-zA-Z0-9_-]{10,}$/.test(url)) return url;
+
+      // try to capture last path segment that looks like an id
+      m = url.match(/([a-zA-Z0-9_-]{10,})$/);
+      if(m && m[1]) return m[1];
+
+      return null;
+    }
+
+    function makeLh3Url(id){
+      if(!id) return '';
+      // According to user's desired format: https://lh3.googleusercontent.com/d/ID
+      return `https://lh3.googleusercontent.com/d/${id}`;
+    }
+
+    function convert(){
+      const url = inEl.value;
+      const id = extractIdFromDriveUrl(url);
+      if(!id){
+        outEl.value = '';
+        previewArea.style.display = 'none';
+        alert('Não consegui extrair o ID do link. Verifique se o link é válido do Google Drive.');
+        return;
+      }
+      const final = makeLh3Url(id);
+      outEl.value = final;
+
+      // show preview (may fail due to permissões)
+      previewImg.src = final;
+      previewImg.onerror = function(){ previewArea.style.display = 'none'; };
+      previewImg.onload = function(){ previewArea.style.display = 'block'; };
+    }
+
+    btnConvert.addEventListener('click', convert);
+    btnCopy.addEventListener('click', async () => {
+      const v = outEl.value;
+      if(!v) return alert('Nada para copiar');
+      try{
+        await navigator.clipboard.writeText(v);
+        alert('Link copiado!');
+      }catch(e){
+        outEl.select();
+        document.execCommand('copy');
+        alert('Copiado (fallback)');
+      }
+    });
+
+    btnClear.addEventListener('click', ()=>{
+      inEl.value=''; outEl.value=''; previewArea.style.display='none';
+    });
+
+    btnPaste.addEventListener('click', async ()=>{
+      try{
+        const text = await navigator.clipboard.readText();
+        inEl.value = text;
+      }catch(e){
+        alert('Não foi possível acessar a área de transferência. Cole manualmente.');
+      }
+    });
+
+    // convert on Enter
+    inEl.addEventListener('keydown', (e)=>{ if(e.key === 'Enter') convert(); });
+  </script>
+</body>
+</html>
